@@ -1,0 +1,90 @@
+---
+title: "ADF"
+output: html_document
+---
+
+```{r}
+library(readr)
+library(urca)
+library(tseries)
+library(vars)
+wticrude <- read_csv("G:/researchdata/wticrude.csv")
+wtiheatingoil <- read_csv("G:/researchdata/wtiheatingoil.csv")
+```
+```{r}
+ln.wticrude<-log(wticrude$price)
+diff.wticrude<-diff(wticrude$price)
+ln.diff.wticrude<-diff(ln.wticrude)
+```
+### ADF WTI crude
+```{r}
+adf.wticrude<-ur.df(y=wticrude$price, type = "drift", selectlags = "BIC")
+summary(adf.wticrude)
+plot(adf.wticrude)
+```
+### ADF diff.wticrude
+```{r}
+adf.diff.wticrude<-ur.df(y=diff.wticrude, type = "drift", selectlags = "BIC")
+summary(adf.diff.wticrude)
+plot(adf.diff.wticrude)
+```
+### ADF ln.wticrude
+```{r}
+adf.ln.wticrude<-ur.df(y=ln.wticrude, type="drift", selectlags = "BIC")
+summary(adf.ln.wticrude)
+plot(adf.ln.wticrude)
+```
+### ADF ln.diff.wticrude
+```{r}
+adf.ln.diff.wticrude<-ur.df(y=ln.diff.wticrude, type = "drift", selectlags = "BIC")
+summary(adf.ln.diff.wticrude)
+plot(adf.ln.diff.wticrude)
+```
+
+-------------------------------------------------------------------------------------------------------------------------------
+
+```{r}
+ln.wtiheat<-log(wtiheatingoil$price)
+diff.wtiheat<-diff(wtiheatingoil$price)
+ln.diff.wtiheat<-diff(ln.wtiheat)
+```
+### ADF WTI heating oil
+```{r}
+adf.wtiheat<-ur.df(y=wtiheatingoil$price, type = "drift", selectlags = "BIC")
+summary(adf.wtiheat)
+plot(adf.wtiheat)
+```
+### ADF diff.wtiheat
+```{r}
+adf.diff.wtiheat<-ur.df(y=diff.wtiheat, type = "drift", selectlags = "BIC")
+summary(adf.diff.wtiheat)
+plot(adf.diff.wtiheat)
+```
+### ADF ln.wtiheat
+```{r}
+adf.ln.wtiheat<-ur.df(y=ln.wtiheat, type = "drift", selectlags = "BIC")
+summary(adf.ln.wtiheat)
+plot(adf.ln.wtiheat)
+adf.test(ln.wticrude)
+```
+### ADF ln.diff.wtiheat
+```{r}
+adf.ln.diff.wtiheat<-ur.df(y=ln.diff.wtiheat, type = "drift", selectlags = "BIC")
+summary(adf.ln.diff.wtiheat)
+plot(adf.ln.diff.wtiheat)
+```
+-------------------------------------------------------------------------------------------------------------------------------
+### Engle Granger
+```{r}
+fit<-lm(ln.wticrude~ln.wtiheat)
+summary(fit)
+```
+
+```{r}
+resid<-fit$residuals
+plot(resid, type = "b", lwd = 3, col = "blue", main = "Engle-Granger Step 1 Residuals")
+```
+```{r}
+adf.resid <-ur.df(resid, type = "drift", selectlags = "BIC")
+summary(adf.resid)
+```
