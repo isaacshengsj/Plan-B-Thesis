@@ -1,0 +1,252 @@
+---
+title: "Johansen, VECM, Moving Average, Return"
+output: html_document
+---
+
+```{r}
+library(readr)
+library(urca)
+library(tseries)
+library(vars)
+library(lmtest)
+library(TTR)
+wticrude <- read_csv("G:/researchdata/wticrude.csv")
+wtiheatingoil <- read_csv("G:/researchdata/wtiheatingoil.csv")
+```
+```{r}
+ln.wticrude<-log(wticrude$price)
+diff.wticrude<-diff(wticrude$price)
+ln.diff.wticrude<-diff(ln.wticrude)
+```
+```{r}
+perbarrel<-wtiheatingoil$price*42
+ln.wtiheat<-log(perbarrel)
+diff.wtiheat<-diff(perbarrel)
+ln.diff.wtiheat<-diff(ln.wtiheat)
+```
+
+```{r}
+Box.test(ln.diff.wticrude, lag = 500, type = "Ljung")##H0= stationary H1=non-stationary 
+Box.test(ln.diff.wtiheat, lag = 3000, type = "Ljung")##H0= stationary H1=non-stationary 
+```
+## Johansen Cointegration test
+```{r}
+wticbine<-cbind(wticrude$price,wtiheatingoil$price)
+diff.wticbine<-cbind(diff.wticrude,diff.wtiheat)
+ln.wticbine<-cbind(ln.wticrude,ln.wtiheat)
+ln.diff.wticbine<-cbind(ln.diff.wticrude,ln.diff.wtiheat)
+```
+### Johansen Cointegration test for ln.wti crude oil and heating oil(ln.wtinormal)(lag=2500).
+```{r}
+#ln.wtinormal<-ca.jo(ln.wticbine, type = "trace", ecdet = "none", K=2500, spec = "longrun")
+#summary(ln.wtinormal)
+```
+
+```{r}
+s=1.00*ln.wticrude-0.9705411*ln.wtiheat
+plot(s, type="l")
+adf.test(s)
+```
+### Johansen Cointegration test for ln.wti crude oil and heating oil(ln.wtinormal)(lag=50).
+```{r}
+ln.wtinormal50<-ca.jo(ln.wticbine, type = "trace", ecdet = "none", K=2, spec = "longrun")
+summary(ln.wtinormal50)
+```
+### VECM
+```{r}
+vecm<-cajorls(ln.wtinormal50)
+summary(vecm)
+vecm
+```
+### Granger Causality test:
+H0=Independent variable does not cause granger dependent variable
+H1=Independent variable does cause granger dependent variable
+```{r}
+grangertest(ln.diff.wtiheat~ln.diff.wticrude, order=4)
+```
+
+```{r}
+grangertest(ln.diff.wticrude~ln.diff.wtiheat, order=4)
+```
+
+```{r}
+grangertest(ln.wticrude~ln.wtiheat, order=2)
+```
+```{r}
+grangertest(ln.wtiheat~ln.wticrude, order=2)
+```
+
+```{r}
+VARselect(ln.wticbine, lag.max = 100, type = "const")$selection
+```
+###Moving Average one week for log difference WTI Heating Oil
+```{r}
+ma1week<-EMA(ln.diff.wtiheat, n=5)
+plot(ma1week, type = "l", xlim = c(1000,1500))
+```
+### Moving Average Four Weeks for log difference WTI Crude Oil
+```{r}
+ma4week<-EMA(ln.diff.wticrude, n = 20)
+plot(ma4week, type = "l", xlim = c(1000,1500))
+```
+### Moving Average Signal
+```{r}
+signal<-ma4week-ma1week
+plot(signal,type="l", xlim = c(1000,1500))
+```
+```{r}
+library(methods)
+```
+### Round Up signals into 1 or -1
+```{r}
+signalround<-sign(signal)
+```
+
+
+```{r}
+wtiheatpricebarrel<-wtiheatingoil$price*42
+wtiheatprice<-wtiheatpricebarrel[1:8564]
+wticrudeprice<-wticrude$price[1:8564]
+signalfinal<-signalround[20:8583]
+```
+
+```{r}
+combine<-cbind(wticrudeprice, wtiheatprice, signalfinal)
+```
+### Revised
+```{r}
+dailyreturn<-wticrudeprice*signalfinal*(-1)+wtiheatprice*signalfinal*0.9548025
+bind<-cbind(ln.wticrude, ln.wtiheat, signalfinal, dailyreturn)
+View(bind)
+```
+
+```{r}
+sum(dailyreturn[1:365])
+sum(dailyreturn[366:730])
+sum(dailyreturn[731:1095])
+sum(dailyreturn[1096:1460])
+sum(dailyreturn[1461:1825])
+```
+```{r}
+previous<-0
+i<-1
+priceleft<-0
+priceright<-0
+num<-0
+annualreturn<-0
+flag<-0
+annualarray<-wticrudeprice*0
+for (index in signalfinal){     ###在forloop情况下 if的loop里面是正常步骤 当需要辨别特殊步骤的时候 在else里展示
+  if (index==previous){         ###index是signal里面的数 当index等于之前一项时 进行if部分 正常步骤
+    num=num+1                  ###新的num就是在本身的num基础上加1
+    priceleft=wticrudeprice[i]+priceleft  ### 将之前每一行符合标准的price叠加（原本等号左边是0，但是当i=1的时候 priceleft就有了值 从而实现累加
+    priceright=wtiheatprice[i]*0.950073+priceright  ###同理上面
+    #priceL[i] = wticrudeprice[i]   ###将上面累加结果进行保存
+    #priceR[i] = wtiheatprice[i]
+  }
+    
+  else {                        ### 当假设（index==previous）不成立的时候 即（index！=previous)
+    #left=wticrudeprice[i]*num   ###则取之前完成的次数（num）乘以当前价格
+    #right=wtiheatprice[i]*num
+    #View(wticrudeprice[i])      ###同上  此时的num是从之前一步继承下来所以无需多虑
+    #aboveleft=index*(priceleft-left)  ####计算一轮买卖差值
+    #aboveright=index*(right-priceright)###同上
+    #moneyreturn=aboveleft+aboveright
+    
+    if (num!=0){
+      flag=flag+1  ##计数
+      left=wticrudeprice[i]*num   ###则取之前完成的次数（num）乘以当前价格
+      right=wtiheatprice[i]*num*0.950073   ###同上  此时的num是从之前一步继承下来所以无需多虑
+      aboveleft=index*(priceleft-left)  ####计算一轮买卖差值
+      aboveright=index*(right-priceright)###同上
+      moneyreturn=aboveleft+aboveright
+      if (index==1){    #???????
+       cost=left+priceright
+      }
+      else{
+       cost=right+priceleft
+      }
+      annualreturn=annualreturn+(1+moneyreturn/cost)**((num+1)/365)-1
+      annualarray[i]<-annualreturn
+      priceleft=0     ###参数归零
+      priceright=0
+      num=0
+    }
+    else {
+          priceleft=wticrudeprice[i]     
+          priceright=wtiheatprice[i]*0.950073
+          num=1
+      
+    }
+    #annualreturn<-(1+moneyreturn/cost)**((num+1)/365)-1  
+
+  }
+  i=i+1
+  previous<-index
+  
+}
+```
+```{r}
+a1<-annualarray[annualarray!=0]
+View(a1)
+plot(a1, type="l")
+```
+### Another Assumption
+```{r}
+previous<-0
+i<-1
+priceleft<-0
+priceright<-0
+num<-0
+annualreturn<-0
+flag<-0
+annualarray<-wticrudeprice*0
+
+for (index in signalfinal){     
+  if (index==previous){         
+    num=num+1                  
+    priceleft=wticrudeprice[i]+priceleft   
+    priceright=wtiheatprice[i]+priceright  
+   
+  }
+    
+  else {
+    
+    if (num!=0){
+      flag=flag+1  
+      left=wticrudeprice[i]*num   
+      right=wtiheatprice[i]*num   
+      aboveleft=index*(priceleft-left)  
+      aboveright=index*(right-priceright)
+      moneyreturn=aboveleft+aboveright
+      if (index==1){    
+       cost=left+priceright
+      }
+      else{
+       cost=right+priceleft
+      }
+      annualreturn=annualreturn+(1+moneyreturn/cost)**(365/(num+1))-1
+      annualarray[i]<-annualreturn
+      priceleft=0     
+      priceright=0
+      num=0
+    }
+    else {
+          priceleft=wticrudeprice[i]     
+          priceright=wtiheatprice[i]
+          num=1
+      
+    }
+    #annualreturn<-(1+moneyreturn/cost)**((num+1)/365)-1  
+
+  }
+  i=i+1
+  previous<-index
+  
+}
+```
+
+### Stationary Bootstrap
+```{r}
+tsbootstrap()
+```
